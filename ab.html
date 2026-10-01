@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>A/B дубляжа</title>
+<title>Оригинал и A/B/C дубляжа</title>
 <style>
   :root {
     --bg: #f6f6f4; --surface: #ffffff; --text: #1b1b1a; --muted: #6b6b66;
@@ -23,9 +23,9 @@
   main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin: 0 0 16px; }
-  video { width: 100%; display: block; border-radius: 8px; background: #000; }
+  audio#aO { width: 100%; display: block; }
   .switch {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 8px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0 8px;
   }
   .switch button {
     font: inherit; text-align: left; cursor: pointer;
@@ -47,12 +47,16 @@
 </head>
 <body>
 <main>
-  <h1>Украинский дубляж: A / B / C</h1>
-  <p class="sub">video3-fragment.mp4, 3:15. Видео без звука, играет выбранная дорожка. Громкость дорожек выровнена.</p>
+  <h1>Украинский дубляж: оригинал / A / B / C</h1>
+  <p class="sub">Фрагмент ролика 3, 3:15 (<a href="https://youtu.be/FA1oVqBTUeM">смотреть видео</a>). Играет выбранная дорожка из папки <code>tracks/</code>, остальные идут с ней в такт без звука. Громкость дорожек выровнена.</p>
 
-  <video id="v" src="input/video3-fragment.mp4" controls muted playsinline preload="auto"></video>
+  <audio id="aO" src="tracks/original.m4a" controls preload="auto"></audio>
 
   <div class="switch" role="group" aria-label="Дорожка">
+    <button id="bO" aria-pressed="false">
+      <b>Оригинал · русский</b>
+      <span>Звук ролика 3, с которого делались все три дубляжа</span>
+    </button>
     <button id="bA" aria-pressed="true">
       <b>A · Наш конвейер</b>
       <span>Demucs + Whisper + перевод по глоссарию + ElevenLabs v4, ручная подгонка</span>
@@ -66,7 +70,7 @@
       <span>Перевод MamayLM 12B (Ollama) + OmniVoice по 7-секундному образцу. Лицензия OmniVoice — только некоммерческая</span>
     </button>
   </div>
-  <p class="hint"><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> — выбрать дорожку, <kbd>X</kbd> — следующая, <kbd>Пробел</kbd> — пауза, <kbd>←</kbd> <kbd>→</kbd> — на 5 секунд.</p>
+  <p class="hint"><kbd>0</kbd> — оригинал, <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> — A / B / C, <kbd>X</kbd> — следующая, <kbd>Пробел</kbd> — пауза, <kbd>←</kbd> <kbd>→</kbd> — на 5 секунд.</p>
 </main>
 
 <audio id="aA" src="tracks/A.m4a" preload="auto"></audio>
@@ -74,10 +78,11 @@
 <audio id="aC" src="tracks/C.m4a" preload="auto"></audio>
 
 <script>
-  const v = document.getElementById("v");
+  // Часы страницы — дорожка оригинала с панелью управления; A/B/C идут за ней без звука, пока не выбраны.
+  const v = document.getElementById("aO");
   const tracks = { A: document.getElementById("aA"), B: document.getElementById("aB"), C: document.getElementById("aC") };
-  const buttons = { A: document.getElementById("bA"), B: document.getElementById("bB"), C: document.getElementById("bC") };
-  const order = ["A", "B", "C"];
+  const buttons = { O: document.getElementById("bO"), A: document.getElementById("bA"), B: document.getElementById("bB"), C: document.getElementById("bC") };
+  const order = ["O", "A", "B", "C"];
   let active = "A";
 
   function syncTime(force) {
@@ -87,6 +92,7 @@
   }
   function select(key) {
     active = key;
+    v.muted = key !== "O";
     for (const [k, a] of Object.entries(tracks)) a.muted = k !== key;
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(k === key));
     syncTime(true);
@@ -102,8 +108,9 @@
 
   for (const k of order) buttons[k].addEventListener("click", () => select(k));
   document.addEventListener("keydown", e => {
+    if (e.target === v) return;   // фокус на панели плеера: клавиши обрабатывает сам плеер
     if (e.target.tagName === "BUTTON" && e.key === " ") e.preventDefault();
-    if (e.key === "1" || e.key === "2" || e.key === "3") select(order[Number(e.key) - 1]);
+    if (e.key === "0" || e.key === "1" || e.key === "2" || e.key === "3") select(order[Number(e.key)]);
     else if (e.key === "x" || e.key === "X" || e.key === "ч" || e.key === "Ч") select(order[(order.indexOf(active) + 1) % order.length]);
     else if (e.key === " ") { e.preventDefault(); v.paused ? v.play() : v.pause(); }
     else if (e.key === "ArrowLeft") v.currentTime = Math.max(0, v.currentTime - 5);
