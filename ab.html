@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A/B дубляжа</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --surface: #ffffff; --text: #1b1b1a; --muted: #6b6b66;
+    --border: #dddcd6; --accent: #2f5bd3; --accent-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151515; --surface: #1f1f1e; --text: #ececea; --muted: #9c9c96;
+      --border: #34342f; --accent: #6f93ff; --accent-text: #0e0e0e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  video { width: 100%; display: block; border-radius: 8px; background: #000; }
+  .switch {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 8px;
+  }
+  .switch button {
+    font: inherit; text-align: left; cursor: pointer;
+    padding: 12px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .switch button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-text);
+  }
+  .switch b { display: block; font-size: 16px; }
+  .switch span { font-size: 13px; opacity: .85; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0; }
+  kbd {
+    font: 12px ui-monospace, monospace; padding: 1px 5px;
+    border: 1px solid var(--border); border-radius: 4px; background: var(--surface);
+  }
+  @media (max-width: 720px) { .switch { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Украинский дубляж: A / B / C</h1>
+  <p class="sub">video3-fragment.mp4, 3:15. Видео без звука, играет выбранная дорожка. Громкость дорожек выровнена.</p>
+
+  <video id="v" src="input/video3-fragment.mp4" controls muted playsinline preload="auto"></video>
+
+  <div class="switch" role="group" aria-label="Дорожка">
+    <button id="bA" aria-pressed="true">
+      <b>A · Наш конвейер</b>
+      <span>Demucs + Whisper + перевод по глоссарию + ElevenLabs v4, ручная подгонка</span>
+    </button>
+    <button id="bB" aria-pressed="false">
+      <b>B · ElevenLabs Dubbing API</b>
+      <span>Автоматически одной командой: RU → UK, клон голоса из видео</span>
+    </button>
+    <button id="bC" aria-pressed="false">
+      <b>C · Всё локально, бесплатно</b>
+      <span>Перевод MamayLM 12B (Ollama) + OmniVoice по 7-секундному образцу. Лицензия OmniVoice — только некоммерческая</span>
+    </button>
+  </div>
+  <p class="hint"><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> — выбрать дорожку, <kbd>X</kbd> — следующая, <kbd>Пробел</kbd> — пауза, <kbd>←</kbd> <kbd>→</kbd> — на 5 секунд.</p>
+</main>
+
+<audio id="aA" src="tracks/A.m4a" preload="auto"></audio>
+<audio id="aB" src="tracks/B.m4a" preload="auto"></audio>
+<audio id="aC" src="tracks/C.m4a" preload="auto"></audio>
+
+<script>
+  const v = document.getElementById("v");
+  const tracks = { A: document.getElementById("aA"), B: document.getElementById("aB"), C: document.getElementById("aC") };
+  const buttons = { A: document.getElementById("bA"), B: document.getElementById("bB"), C: document.getElementById("bC") };
+  const order = ["A", "B", "C"];
+  let active = "A";
+
+  function syncTime(force) {
+    for (const a of Object.values(tracks)) {
+      if (force || Math.abs(a.currentTime - v.currentTime) > 0.12) a.currentTime = v.currentTime;
+    }
+  }
+  function select(key) {
+    active = key;
+    for (const [k, a] of Object.entries(tracks)) a.muted = k !== key;
+    for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(k === key));
+    syncTime(true);
+  }
+
+  v.addEventListener("play", () => { syncTime(true); Object.values(tracks).forEach(a => a.play()); });
+  v.addEventListener("pause", () => Object.values(tracks).forEach(a => a.pause()));
+  v.addEventListener("seeked", () => syncTime(true));
+  v.addEventListener("ratechange", () => Object.values(tracks).forEach(a => a.playbackRate = v.playbackRate));
+  v.addEventListener("waiting", () => Object.values(tracks).forEach(a => a.pause()));
+  v.addEventListener("playing", () => { syncTime(true); Object.values(tracks).forEach(a => a.play()); });
+  setInterval(() => { if (!v.paused) syncTime(false); }, 250);
+
+  for (const k of order) buttons[k].addEventListener("click", () => select(k));
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "BUTTON" && e.key === " ") e.preventDefault();
+    if (e.key === "1" || e.key === "2" || e.key === "3") select(order[Number(e.key) - 1]);
+    else if (e.key === "x" || e.key === "X" || e.key === "ч" || e.key === "Ч") select(order[(order.indexOf(active) + 1) % order.length]);
+    else if (e.key === " ") { e.preventDefault(); v.paused ? v.play() : v.pause(); }
+    else if (e.key === "ArrowLeft") v.currentTime = Math.max(0, v.currentTime - 5);
+    else if (e.key === "ArrowRight") v.currentTime = Math.min(v.duration, v.currentTime + 5);
+  });
+  select("A");
+</script>
+</body>
+</html>
